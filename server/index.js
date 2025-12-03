@@ -1,18 +1,19 @@
 /**
  * ReciPeasy Server - Main Entry Point
  * CS 409 Web Programming - UIUC Final Project
- * 
+ *
  * satisfies: RESTful API requirement
  * satisfies: backend server requirement
  */
 
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
 
-// Load environment variables
-dotenv.config();
+// Load environment variables from .env
+dotenv.config({ path: path.join(__dirname, '.env') });
 
 // Import routes
 const authRoutes = require('./routes/authRoutes');
@@ -26,20 +27,36 @@ const app = express();
 // satisfies: database requirement
 connectDB();
 
-// Middleware
-app.use(cors({
-  origin: process.env.CLIENT_URL || 'http://localhost:5173',
-  credentials: true
-}));
+// ----- Global Middleware -----
+
+// CORS – allow frontend on Vite dev server
+app.use(
+  cors({
+    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    credentials: true,
+  })
+);
+
+// Parse JSON request bodies
 app.use(express.json());
 
-// Request logging middleware (for development)
+// Simple request logger (for debugging)
 app.use((req, res, next) => {
-  console.log(`${new Date().toISOString()} - ${req.method} ${req.path}`);
+  console.log(`${new Date().toISOString()} - ${req.method} ${req.originalUrl}`);
   next();
 });
 
-// API Routes
+// ----- Routes -----
+
+// Root route (so hitting http://localhost:5001/ works nicely)
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    message: 'ReciPeasy API root',
+  });
+});
+
+// API routes
 // satisfies: RESTful API endpoints requirement
 app.use('/api/auth', authRoutes);
 app.use('/api/recipes', recipesRoutes);
@@ -47,18 +64,18 @@ app.use('/api/favorites', favoritesRoutes);
 
 // Health check endpoint
 app.get('/api/health', (req, res) => {
-  res.json({ 
-    status: 'ok', 
+  res.json({
+    status: 'ok',
     message: 'ReciPeasy API is running',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
   });
 });
 
-// 404 handler
+// 404 handler (for any unmatched routes)
 app.use((req, res) => {
-  res.status(404).json({ 
-    error: 'Not Found', 
-    message: `Cannot ${req.method} ${req.path}` 
+  res.status(404).json({
+    error: 'Not Found',
+    message: `Cannot ${req.method} ${req.originalUrl}`,
   });
 });
 
@@ -67,22 +84,24 @@ app.use((err, req, res, next) => {
   console.error('Server Error:', err);
   res.status(err.status || 500).json({
     error: err.message || 'Internal Server Error',
-    ...(process.env.NODE_ENV === 'development' && { stack: err.stack })
+    ...(process.env.NODE_ENV === 'development' && { stack: err.stack }),
   });
 });
 
-// Start server
-const PORT = process.env.PORT || 5000;
+// ----- Start Server -----
+const PORT = process.env.PORT || 5001;
+
 app.listen(PORT, () => {
   console.log(`
   ╔════════════════════════════════════════════╗
   ║     🍳 ReciPeasy Server is Running! 🍳     ║
   ╠════════════════════════════════════════════╣
-  ║  Local:  http://localhost:${PORT}             ║
-  ║  API:    http://localhost:${PORT}/api         ║
+  ║  Local:  http://localhost:${PORT}         
+  ║  API:    http://localhost:${PORT}/api     
   ╚════════════════════════════════════════════╝
   `);
 });
 
 module.exports = app;
+
 

@@ -10,24 +10,53 @@ import { authAPI } from '../services/api'
 
 const AuthContext = createContext(null)
 
+/**
+ * Safe hook to access auth state
+ * If used outside an AuthProvider, it returns a default "logged out" state
+ * instead of crashing the whole app.
+ */
 export const useAuth = () => {
   const context = useContext(AuthContext)
+
   if (!context) {
-    throw new Error('useAuth must be used within an AuthProvider')
+    // Failsafe so the app doesn't hard-crash with a white screen
+    console.warn('useAuth used outside of AuthProvider. Returning default auth state.')
+
+    return {
+      user: null,
+      loading: false,
+      error: null,
+      login: async () => {
+        throw new Error('Auth not initialized')
+      },
+      signup: async () => {
+        throw new Error('Auth not initialized')
+      },
+      logout: () => {},
+      updatePreferences: async () => {
+        throw new Error('Auth not initialized')
+      },
+      clearError: () => {},
+      isAuthenticated: false,
+    }
   }
+
   return context
 }
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  const [loading, setLoading] = useState(true)   // loading initial auth state
   const [error, setError] = useState(null)
 
-  // Check for existing session on mount
+  /**
+   * On mount, check if we have a token and try to fetch current user
+   * satisfies: persistent login / session restoration
+   */
   useEffect(() => {
     const checkAuth = async () => {
       const token = localStorage.getItem('token')
-      
+
       if (!token) {
         setLoading(false)
         return
@@ -35,9 +64,10 @@ export const AuthProvider = ({ children }) => {
 
       try {
         const response = await authAPI.getCurrentUser()
+        // expected shape: { user: { ... } }
         setUser(response.user)
       } catch (err) {
-        // Token invalid or expired
+        // Token invalid or expired – clear it out
         localStorage.removeItem('token')
         setUser(null)
       } finally {
@@ -50,6 +80,8 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Login user with email and password
+   * expected authAPI.login(email, password) response:
+   * { token: string, user: { ... } }
    */
   const login = async (email, password) => {
     setError(null)
@@ -67,6 +99,8 @@ export const AuthProvider = ({ children }) => {
 
   /**
    * Register new user
+   * expected authAPI.signup(email, password) response:
+   * { token: string, user: { ... } }
    */
   const signup = async (email, password) => {
     setError(null)
@@ -83,7 +117,7 @@ export const AuthProvider = ({ children }) => {
   }
 
   /**
-   * Logout user
+   * Logout user – clears token and resets user
    */
   const logout = () => {
     localStorage.removeItem('token')
@@ -92,7 +126,9 @@ export const AuthProvider = ({ children }) => {
   }
 
   /**
-   * Update user preferences
+   * Update user preferences (e.g., protein goals, max cook time)
+   * expected authAPI.updatePreferences(preferences) response:
+   * { user: { ...updatedUser } }
    */
   const updatePreferences = async (preferences) => {
     try {
@@ -106,7 +142,7 @@ export const AuthProvider = ({ children }) => {
   }
 
   /**
-   * Clear any auth errors
+   * Clear any auth-related error messages (for UI forms)
    */
   const clearError = () => {
     setError(null)
@@ -121,7 +157,7 @@ export const AuthProvider = ({ children }) => {
     logout,
     updatePreferences,
     clearError,
-    isAuthenticated: !!user
+    isAuthenticated: !!user,
   }
 
   return (
@@ -132,4 +168,3 @@ export const AuthProvider = ({ children }) => {
 }
 
 export default AuthContext
-

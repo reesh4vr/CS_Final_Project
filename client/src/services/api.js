@@ -1,160 +1,89 @@
-/**
- * API Service Layer - Backend Communication
- * CS 409 Web Programming - UIUC Final Project
- * 
- * satisfies: frontend API integration requirement
- */
+// client/src/services/api.js
+// Centralized API client for ReciPeasy
+// Talks to the Node/Express backend at http://localhost:5001/api
 
 import axios from 'axios'
 
-// Create axios instance with default config
+// Base axios instance
 const api = axios.create({
-  baseURL: '/api',
+  baseURL: 'http://localhost:5001/api', // 👈 backend base URL
   headers: {
-    'Content-Type': 'application/json'
-  }
+    'Content-Type': 'application/json',
+  },
 })
 
-// Request interceptor to add auth token
-api.interceptors.request.use(
-  (config) => {
-    const token = localStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
-    return config
-  },
-  (error) => {
-    return Promise.reject(error)
+// Attach JWT token (if present) to every request
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem('token')
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`
   }
-)
-
-// Response interceptor for error handling
-api.interceptors.response.use(
-  (response) => response.data,
-  (error) => {
-    // Handle specific error codes
-    if (error.response?.status === 401) {
-      // Token expired or invalid
-      localStorage.removeItem('token')
-      // Optionally redirect to login
-      // window.location.href = '/login'
-    }
-    return Promise.reject(error)
-  }
-)
+  return config
+})
 
 /**
- * Authentication API calls
- * satisfies: auth API integration requirement
+ * Auth API
+ * Matches backend routes under /api/auth
+ *
+ * Expected backend endpoints:
+ *  POST /api/auth/login       -> { token, user }
+ *  POST /api/auth/signup      -> { token, user }
+ *  GET  /api/auth/me          -> { user }
+ *  PUT  /api/auth/preferences -> { user }
  */
 export const authAPI = {
-  /**
-   * Register a new user
-   * @param {string} email 
-   * @param {string} password 
-   */
-  signup: async (email, password) => {
-    return api.post('/auth/signup', { email, password })
-  },
-
-  /**
-   * Login user
-   * @param {string} email 
-   * @param {string} password 
-   */
   login: async (email, password) => {
-    return api.post('/auth/login', { email, password })
+    const res = await api.post('/auth/login', { email, password })
+    return res.data
   },
 
-  /**
-   * Get current logged-in user
-   */
+  signup: async (email, password) => {
+    const res = await api.post('/auth/signup', { email, password })
+    return res.data
+  },
+
   getCurrentUser: async () => {
-    return api.get('/auth/me')
+    const res = await api.get('/auth/me')
+    return res.data
   },
 
-  /**
-   * Update user preferences
-   * @param {Object} preferences - { default_protein_goal, default_max_time }
-   */
   updatePreferences: async (preferences) => {
-    return api.put('/auth/preferences', preferences)
-  }
+    const res = await api.put('/auth/preferences', preferences)
+    return res.data
+  },
 }
 
 /**
- * Recipe API calls
- * satisfies: recipe search API integration requirement
+ * Recipes API
+ * Matches backend routes under /api/recipes
+ *
+ * Expected backend endpoint:
+ *  POST /api/recipes/search -> { recipes: [...] }
  */
 export const recipesAPI = {
-  /**
-   * Search recipes by ingredients with filters
-   * @param {Object} params - Search parameters
-   * @param {string|string[]} params.ingredients - Comma-separated or array of ingredients
-   * @param {number} params.minProtein - Minimum protein in grams
-   * @param {number} params.maxTime - Maximum cooking time in minutes
-   */
-  search: async ({ ingredients, minProtein = 0, maxTime = 999 }) => {
-    return api.post('/recipes/search', {
+  search: async ({ ingredients, minProtein, maxTime }) => {
+    const res = await api.post('/recipes/search', {
       ingredients,
       minProtein,
-      maxTime
+      maxTime,
     })
+    return res.data
   },
-
-  /**
-   * Get detailed recipe information
-   * @param {number} id - Spoonacular recipe ID
-   */
-  getDetail: async (id) => {
-    return api.get(`/recipes/${id}`)
-  }
 }
 
 /**
- * Favorites API calls
- * satisfies: favorites API integration requirement
+ * Favorites API
+ * Matches backend routes under /api/favorites
+ *
+ * Expected backend endpoint:
+ *  GET /api/favorites -> { favorites: [...] }
  */
 export const favoritesAPI = {
-  /**
-   * Get all favorites for current user
-   */
   getAll: async () => {
-    return api.get('/favorites')
+    const res = await api.get('/favorites')
+    return res.data
   },
-
-  /**
-   * Add a recipe to favorites
-   * @param {Object} recipe - Recipe data to save
-   */
-  add: async (recipe) => {
-    return api.post('/favorites', {
-      recipe_id: recipe.id,
-      title: recipe.title,
-      image: recipe.image,
-      ready_in_minutes: recipe.readyInMinutes,
-      protein_grams: recipe.proteinGrams,
-      calories: recipe.calories
-    })
-  },
-
-  /**
-   * Check if a recipe is favorited
-   * @param {number} recipeId - Spoonacular recipe ID
-   */
-  check: async (recipeId) => {
-    return api.get(`/favorites/check/${recipeId}`)
-  },
-
-  /**
-   * Remove a recipe from favorites
-   * @param {number} recipeId - Spoonacular recipe ID
-   */
-  remove: async (recipeId) => {
-    return api.delete(`/favorites/${recipeId}`)
-  }
+  // You can add add/remove later if needed:
+  // add: async (recipe) => { ... }
+  // remove: async (id) => { ... }
 }
-
-export default api
-
